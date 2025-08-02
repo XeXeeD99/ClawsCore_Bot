@@ -6,16 +6,16 @@ import json
 import random
 from flask import Flask, request
 
-# 🔐 Secure token from environment
+# 🔐 Load token securely from environment variables
 TOKEN = os.getenv("BOT_TOKEN")
 
-# ✅ Logging setup
+# ✅ Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# 🤖 Bot and Dispatcher
+# 🤖 Initialize bot and dispatcher
 bot = Bot(token=TOKEN)
 dispatcher = Dispatcher(bot=bot, update_queue=None, use_context=True)
 
@@ -23,17 +23,17 @@ dispatcher = Dispatcher(bot=bot, update_queue=None, use_context=True)
 MEMORY_FILE = "memory_bank.txt"
 XP_FILE = "memory_bank/xp_data.json"
 
-# ✅ Ensure folder exists
+# ✅ Ensure the memory_bank folder exists
 os.makedirs("memory_bank", exist_ok=True)
 
-# 🧠 Load XP
+# 📊 Load XP data
 def load_xp():
     if not os.path.exists(XP_FILE):
         return {}
     with open(XP_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
-# 💾 Save XP
+# 💾 Save XP data
 def save_xp(data):
     with open(XP_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
@@ -48,87 +48,139 @@ def add_xp(user_id, amount):
 
 # 📊 Get XP
 def get_xp(user_id):
-    return load_xp().get(str(user_id), 0)
+    data = load_xp()
+    return data.get(str(user_id), 0)
 
-# 🏆 Rank System
-def get_rank(xp):
-    if xp >= 10000:
-        return "💀 Profit Reaper"
-    elif xp >= 5000:
-        return "🎯 Master Strategist"
-    elif xp >= 2500:
-        return "🔥 Pattern Dominator"
-    elif xp >= 1000:
-        return "⚔️ Signal Slayer"
-    elif xp >= 500:
-        return "📈 Tactical Analyst"
-    elif xp >= 200:
-        return "📊 Rookie Trader"
-    else:
-        return "🧠 Learner"
+# 🏅 Ranks
+RANKS = [
+    (0, "🔰 Newbie"),
+    (50, "📈 Beginner"),
+    (150, "🎯 Trader"),
+    (300, "💼 Analyst"),
+    (600, "🧠 Strategist"),
+    (1000, "🧠 Elite Strategist"),
+    (2000, "🧠 Supreme Mind"),
+    (3000, "💀 Sniper Master"),
+    (5000, "🔮 Visionary"),
+    (10000, "💰 Profit Reaper")
+]
 
-# 📦 XP by action type
-ACTION_XP = {
-    "sniper_confirmed": 70,
-    "missed_sniper": -40,
-    "pattern_tested": 20,
-    "pattern_learned": 20,
-    "message_sent": lambda: random.randint(1, 5),
-}
+def get_rank(user_id):
+    xp = get_xp(user_id)
+    rank = RANKS[0][1]
+    for threshold, title in RANKS:
+        if xp >= threshold:
+            rank = title
+        else:
+            break
+    return rank
 
-# ✅ XP update wrapper
-def gain_xp(user_id, action):
-    if action in ACTION_XP:
-        amount = ACTION_XP[action]() if callable(ACTION_XP[action]) else ACTION_XP[action]
-        return add_xp(user_id, amount)
-    return get_xp(user_id)
+# 🚀 Phase 3 XP update logic
 
-# 🧪 Example command handlers (Update these for your actual logic)
-def learn_pattern(update, context):
+def handle_user_message(update, context):
     user_id = update.effective_user.id
-    gain_xp(user_id, "pattern_learned")
+    xp_gain = random.randint(1, 5)
+    add_xp(user_id, xp_gain)
 
-def test_pattern(update, context):
-    user_id = update.effective_user.id
-    gain_xp(user_id, "pattern_tested")
+# 🎯 Sniper actions (use these in bot logic)
+def sniper_confirmed(user_id):
+    return add_xp(user_id, 70)
 
-def sniper_confirmed(update, context):
-    user_id = update.effective_user.id
-    gain_xp(user_id, "sniper_confirmed")
+def sniper_missed(user_id):
+    return add_xp(user_id, -40)
 
-def sniper_missed(update, context):
-    user_id = update.effective_user.id
-    gain_xp(user_id, "missed_sniper")
+# 🧠 Pattern actions
+def pattern_learned(user_id):
+    return add_xp(user_id, 20)
 
-# 🗨️ Handle all messages (gain random XP silently)
-def handle_message(update, context):
-    user_id = update.effective_user.id
-    gain_xp(user_id, "message_sent")
+def pattern_tested(user_id):
+    return add_xp(user_id, 20)
 
-# 📈 Check XP (Optional command)
-def check_xp(update, context):
+def pattern_deleted(user_id):
+    pass  # No XP deduction
+
+# 🔍 Debug command to test
+
+def xp_status(update, context):
     user_id = update.effective_user.id
     xp = get_xp(user_id)
-    rank = get_rank(xp)
-    update.message.reply_text(f"🧬 XP: {xp}\n🏅 Rank: {rank}")
+    rank = get_rank(user_id)
+    update.message.reply_text(f"XP: {xp}\nRank: {rank}")
 
-# 🧩 Register handlers
-dispatcher.add_handler(CommandHandler("learn", learn_pattern))
-dispatcher.add_handler(CommandHandler("test", test_pattern))
-dispatcher.add_handler(CommandHandler("sniper", sniper_confirmed))
-dispatcher.add_handler(CommandHandler("miss", sniper_missed))
-dispatcher.add_handler(CommandHandler("xp", check_xp))  # Optional: XP checker
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+# Register handlers
 
-# 🚀 Flask webhook
-app = Flask(__name__)
+dispatcher.add_handler(CommandHandler("xp", xp_status))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_user_message))
+def pattern_tested(user_id): return add_xp(user_id, 20)
 
-@app.route(f"/{TOKEN}", methods=["POST"])
-def webhook():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return "ok"
+def pattern_deleted(user_id): pass  # No XP deduction
 
-@app.route("/")
-def index():
-    return "ClawsCore XP System Active"
+🔍 Debug command to test
+
+def xp_status(update, context): user_id = update.effective_user.id xp = get_xp(user_id) rank = get_rank(user_id) update.message.reply_text(f"XP: {xp}\nRank: {rank}")
+
+Register handlers
+
+dispatcher.add_handler(CommandHandler("xp", xp_status)) dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_user_message))
+
+
+# 🏅 Ranks
+RANKS = [
+    (0, "🔰 Newbie"),
+    (50, "📈 Beginner"),
+    (150, "🎯 Trader"),
+    (300, "💼 Analyst"),
+    (600, "🧠 Strategist"),
+    (1000, "🧠 Elite Strategist"),
+    (2000, "🧠 Supreme Mind"),
+    (3000, "💀 Sniper Master"),
+    (5000, "🔮 Visionary"),
+    (10000, "💰 Profit Reaper")
+]
+
+def get_rank(user_id):
+    xp = get_xp(user_id)
+    rank = RANKS[0][1]
+    for threshold, title in RANKS:
+        if xp >= threshold:
+            rank = title
+        else:
+            break
+    return rank
+
+# 🚀 Phase 3 XP update logic
+
+def handle_user_message(update, context):
+    user_id = update.effective_user.id
+    xp_gain = random.randint(1, 5)
+    add_xp(user_id, xp_gain)
+
+# 🎯 Sniper actions (use these in bot logic)
+def sniper_confirmed(user_id):
+    return add_xp(user_id, 70)
+
+def sniper_missed(user_id):
+    return add_xp(user_id, -40)
+
+# 🧠 Pattern actions
+def pattern_learned(user_id):
+    return add_xp(user_id, 20)
+
+def pattern_tested(user_id):
+    return add_xp(user_id, 20)
+
+def pattern_deleted(user_id):
+    pass  # No XP deduction
+
+# 🔍 Debug command to test
+
+def xp_status(update, context):
+    user_id = update.effective_user.id
+    xp = get_xp(user_id)
+    rank = get_rank(user_id)
+    update.message.reply_text(f"XP: {xp}\nRank: {rank}")
+
+# Register handlers
+
+dispatcher.add_handler(CommandHandler("xp", xp_status))
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_user_message))
