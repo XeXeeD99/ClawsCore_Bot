@@ -34,10 +34,13 @@ def home():
     return "CLAWSCore is live.", 200
 
 def run():
-    app.run(host="0.0.0.0", port=8080)
+    # ✅ Use Render's assigned port from environment (defaults to 8080 if local)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
 
 def keep_alive():
     t = threading.Thread(target=run)
+    t.daemon = True
     t.start()
 
 # 🔄 Main bot loop
@@ -48,10 +51,10 @@ def main():
     # 🔌 Start keep-alive ping server
     keep_alive()
 
+    # 🤖 Start Telegram bot
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
-    # Handlers
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
     dp.add_error_handler(error)
