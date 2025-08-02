@@ -1,6 +1,8 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 import logging
 import os
+from flask import Flask
+import threading
 
 # 🔐 Load token securely from environment variables
 TOKEN = os.getenv("BOT_TOKEN")
@@ -24,11 +26,28 @@ def handle_message(update, context):
 def error(update, context):
     logger.warning(f'Update {update} caused error {context.error}')
 
+# 🌐 Flask app to keep Render instance alive
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "CLAWSCore is live.", 200
+
+def run():
+    app.run(host="0.0.0.0", port=8080)
+
+def keep_alive():
+    t = threading.Thread(target=run)
+    t.start()
+
 # 🔄 Main bot loop
 def main():
     if not TOKEN:
         raise ValueError("❌ BOT_TOKEN environment variable not set!")
-    
+
+    # 🔌 Start keep-alive ping server
+    keep_alive()
+
     updater = Updater(TOKEN, use_context=True)
     dp = updater.dispatcher
 
