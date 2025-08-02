@@ -115,7 +115,7 @@ def pattern_tested(user_id): return add_xp(user_id, 20)
 
 def pattern_deleted(user_id): pass  # No XP deduction
 
-🔍 Debug command to test
+#🔍 Debug command to test
 
 def xp_status(update, context): user_id = update.effective_user.id xp = get_xp(user_id) rank = get_rank(user_id) update.message.reply_text(f"XP: {xp}\nRank: {rank}")
 
