@@ -1,196 +1,169 @@
 import os
 import json
-import random
-from flask import Flask, request
-import telegram
-from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder, ContextTypes, CallbackQueryHandler
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, filters,
+    ContextTypes, CallbackQueryHandler
+)
 
-app = Flask(__name__)
+# === LOGGER ===
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
-TOKEN = os.getenv("BOT_TOKEN")
-URL = os.getenv("RENDER_EXTERNAL_URL")
-PORT = int(os.environ.get("PORT", 5000))
+# === FILE PATHS ===
 XP_FILE = "xp_data.json"
 PATTERN_FILE = "patterns.json"
 
-# XP CONFIG
-XP_PER_MESSAGE = 0  # Disabled earning XP from messages
-XP_PER_PATTERN = 50
-XP_RANKS = [
-    (0, "🌱 Newborn"),
-    (100, "⚙️ Novice Coder"),
-    (300, "🔧 Pattern Apprentice"),
-    (700, "🧠 Tactical Analyst"),
-    (1200, "🧬 Signal Specialist"),
-    (2000, "📈 Momentum Seeker"),
-    (3500, "🎯 Entry Optimizer"),
-    (6000, "💼 Risk Strategist"),
-    (10000, "🚀 Trade Visionary"),
-    (20000, "💀 Profit Reaper")
+# === XP RANK SYSTEM ===
+ranks = [
+    (0, "🔹 Rookie"),
+    (100, "🔸 Learner"),
+    (300, "🛡️ Apprentice"),
+    (700, "🎯 Analyst"),
+    (1500, "⚔️ Strategist"),
+    (3000, "🔮 Pattern Master"),
+    (5000, "🧠 Tactician"),
+    (8000, "💻 Visionary"),
+    (12000, "♟️ Trade Warlock"),
+    (20000, "☠️ Profit Reaper")
 ]
 
-# ========== UTILITY FUNCTIONS ==========
-
-def load_data():
-    try:
-        with open(XP_FILE, 'r') as f:
+# === UTILITIES ===
+def load_json(filepath):
+    if os.path.exists(filepath):
+        with open(filepath, "r") as f:
             return json.load(f)
-    except:
-        return {}
+    return {}
 
-def save_data(data):
-    with open(XP_FILE, 'w') as f:
-        json.dump(data, f)
+def save_json(filepath, data):
+    with open(filepath, "w") as f:
+        json.dump(data, f, indent=4)
 
 def get_rank(xp):
-    for threshold, rank in reversed(XP_RANKS):
+    for threshold, rank in reversed(ranks):
         if xp >= threshold:
             return rank
-    return "🌱 Newborn"
+    return ranks[0][1]
 
-def load_patterns():
-    try:
-        with open(PATTERN_FILE, 'r') as f:
-            return json.load(f)
-    except:
-        return {}
+# === XP SYSTEM ===
+def add_xp(user_id, amount):
+    data = load_json(XP_FILE)
+    user_id = str(user_id)
+    xp = data.get(user_id, 0)
+    xp += amount
+    data[user_id] = xp
+    save_json(XP_FILE, data)
+    return xp, get_rank(xp)
 
-def save_patterns(data):
-    with open(PATTERN_FILE, 'w') as f:
-        json.dump(data, f)
+def get_user_xp(user_id):
+    data = load_json(XP_FILE)
+    xp = data.get(str(user_id), 0)
+    return xp, get_rank(xp)
 
-# ========== HANDLERS ==========
-
+# === TELEGRAM COMMANDS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Welcome to CLAWSCore! Use /help to view commands.")
+    await update.message.reply_text("👋 Welcome to CLAWSCore, your AI Trading Ally! Type /help to begin your XP journey.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = (
-        "🧠 CLAWSCore Commands:\n"
-        "/xp - View your XP and rank\n"
-        "/learn <pattern> - Teach the bot a pattern\n"
-        "/patterns - List learned patterns\n"
-        "/editpattern <old>|<new> - Edit a pattern\n"
-        "/delpattern <pattern> - Delete a pattern\n"
+    text = (
+        "🤖 *CLAWSCore Command List*:
+        
+        /start – Welcome message 👐
+        /help – Show this help menu 📘
+        /xp – Check your XP and rank 📊
+        /learn [pattern] – Teach me a pattern 🧠
+        /patterns – View all saved patterns 📂
+        /test [pattern_name] – Test a saved pattern 🧪
+        /forget [pattern_name] – Delete a pattern 🗑️"
     )
-    await update.message.reply_text(help_text)
+    await update.message.reply_markdown(text)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    text = update.message.text
-    data = load_data()
+async def xp_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    xp, rank = get_user_xp(user_id)
+    await update.message.reply_text(f"📈 XP: {xp}\n🏅 Rank: {rank}")
 
-    if user_id not in data:
-        data[user_id] = {"xp": 0}
+# === PATTERN MEMORY ===
+def load_patterns():
+    return load_json(PATTERN_FILE)
 
-    save_data(data)
+def save_patterns(data):
+    save_json(PATTERN_FILE, data)
 
-async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    data = load_data()
-    xp = data.get(user_id, {}).get("xp", 0)
-    rank = get_rank(xp)
-    await update.message.reply_text(f"📊 XP: {xp}\n🏆 Rank: {rank}")
+async def learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text.split(" ", 1)
+    if len(text) < 2:
+        await update.message.reply_text("⚠️ Usage: /learn [pattern_name]: [pattern_content]")
+        return
 
-async def learn_pattern(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    text = update.message.text.replace("/learn", "", 1).strip()
-
-    if not text:
-        await update.message.reply_text("⚠️ Please provide a pattern to learn.")
+    try:
+        name, content = text[1].split(":", 1)
+        name = name.strip()
+        content = content.strip()
+    except ValueError:
+        await update.message.reply_text("⚠️ Use format: /learn [pattern_name]: [pattern_content]")
         return
 
     patterns = load_patterns()
-    if user_id not in patterns:
-        patterns[user_id] = []
-
-    if text in patterns[user_id]:
-        await update.message.reply_text("🌀 Already learned that pattern.")
-        return
-
-    patterns[user_id].append(text)
+    patterns[name] = content
     save_patterns(patterns)
-
-    data = load_data()
-    if user_id not in data:
-        data[user_id] = {"xp": 0}
-    data[user_id]["xp"] += XP_PER_PATTERN
-    save_data(data)
-
-    await update.message.reply_text(f"🧠 Learned: \"{text}\" (You gained {XP_PER_PATTERN} XP!)")
+    xp, rank = add_xp(user_id, 70)
+    await update.message.reply_text(f"✅ Pattern '{name}' saved! (+70 XP)\n📈 Total XP: {xp}\n🏅 Rank: {rank}")
 
 async def list_patterns(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    patterns = load_patterns().get(user_id, [])
-
+    patterns = load_patterns()
     if not patterns:
-        await update.message.reply_text("📭 No patterns learned yet.")
+        await update.message.reply_text("🔍 No patterns saved yet!")
     else:
-        msg = "📚 Your Patterns:\n"
-        msg += "\n".join(f"- {p}" for p in patterns)
-        await update.message.reply_text(msg)
+        reply = "📚 *Saved Patterns:*\n\n" + "\n".join([f"🔹 {k}" for k in patterns])
+        await update.message.reply_markdown(reply)
 
-async def delete_pattern(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    text = update.message.text.replace("/delpattern", "", 1).strip()
-
-    if not text:
-        await update.message.reply_text("⚠️ Provide a pattern to delete.")
+async def test_pattern(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) == 0:
+        await update.message.reply_text("⚠️ Usage: /test [pattern_name]")
         return
 
+    name = " ".join(context.args)
     patterns = load_patterns()
-    if user_id not in patterns or text not in patterns[user_id]:
+    content = patterns.get(name)
+    if content:
+        await update.message.reply_text(f"🧪 Testing Pattern '{name}':\n\n{content}")
+    else:
         await update.message.reply_text("❌ Pattern not found.")
+
+async def forget_pattern(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if len(context.args) == 0:
+        await update.message.reply_text("⚠️ Usage: /forget [pattern_name]")
         return
 
-    patterns[user_id].remove(text)
-    save_patterns(patterns)
-    await update.message.reply_text(f"🗑️ Deleted pattern: {text}")
-
-async def edit_pattern(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = str(update.message.from_user.id)
-    text = update.message.text.replace("/editpattern", "", 1).strip()
-
-    if "|" not in text:
-        await update.message.reply_text("⚠️ Use format: /editpattern old|new")
-        return
-
-    old, new = map(str.strip, text.split("|", 1))
-
+    name = " ".join(context.args)
     patterns = load_patterns()
-    if user_id not in patterns or old not in patterns[user_id]:
+    if name in patterns:
+        del patterns[name]
+        save_patterns(patterns)
+        await update.message.reply_text(f"🗑️ Pattern '{name}' deleted.")
+    else:
         await update.message.reply_text("❌ Pattern not found.")
-        return
 
-    patterns[user_id][patterns[user_id].index(old)] = new
-    save_patterns(patterns)
-    await update.message.reply_text(f"✏️ Updated pattern: {old} ➡️ {new}")
-
-# ========== SETUP TELEGRAM ==========
-
-tg_app = ApplicationBuilder().token(TOKEN).build()
-tg_app.add_handler(CommandHandler("start", start))
-tg_app.add_handler(CommandHandler("help", help_command))
-tg_app.add_handler(CommandHandler("xp", xp))
-tg_app.add_handler(CommandHandler("learn", learn_pattern))
-tg_app.add_handler(CommandHandler("patterns", list_patterns))
-tg_app.add_handler(CommandHandler("editpattern", edit_pattern))
-tg_app.add_handler(CommandHandler("delpattern", delete_pattern))
-tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-# ========== DEPLOYMENT FLASK ==========
-
-@app.route("/")
-def home():
-    return "CLAWSCore Bot Running"
-
-@app.route(f"/{TOKEN}", methods=["POST"])
-def receive_update():
-    update = telegram.Update.de_json(request.get_json(force=True), Bot(TOKEN))
-    tg_app.update_queue.put(update)
-    return "ok"
+# === MAIN APP ===
+async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🤖 Sorry, I didn’t understand that command.")
 
 if __name__ == "__main__":
-    tg_app.run_polling()
-    app.run(host="0.0.0.0", port=PORT)
+    TOKEN = os.environ.get("BOT_TOKEN")
+    app = Application.builder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("xp", xp_command))
+    app.add_handler(CommandHandler("learn", learn))
+    app.add_handler(CommandHandler("patterns", list_patterns))
+    app.add_handler(CommandHandler("test", test_pattern))
+    app.add_handler(CommandHandler("forget", forget_pattern))
+    app.add_handler(MessageHandler(filters.COMMAND, unknown))
+
+    app.run_polling()
