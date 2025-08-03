@@ -37,7 +37,7 @@ badges = {
     100000: "👑 CLAWS Mastermind",
 }
 
-# ---------- UTILITIES ---------- #
+# ---------- UTILITIES ----------
 
 def get_user_data(user_id):
     if user_id not in users:
@@ -45,7 +45,7 @@ def get_user_data(user_id):
             "xp": 0,
             "patterns": {},
             "badges": [],
-            "brain_on": False  # brain toggle status
+            "brain_on": False
         }
     return users[user_id]
 
@@ -78,13 +78,12 @@ def check_badges(user_id):
             unlocked.append(badge_name)
     return unlocked
 
-# ---------- MIXTRAL PLACEHOLDER ---------- #
+# ---------- MIXTRAL PLACEHOLDER ----------
 
 async def ask_mixtral(prompt: str):
-    # Replace with actual Mixtral API integration
     return f"🤖 [Mixtral AI Brain Responds]:\n{prompt}"
 
-# ---------- COMMANDS ---------- #
+# ---------- COMMANDS ----------
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -103,22 +102,21 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🧪 /profile — View full stats: XP, rank, patterns & badges\n"
         "🎖️ /badge — View unlocked badges\n"
         "🌟 /achievements — All possible ranks & badges\n"
-        "🧠 /brain on|off — Toggle AI Brain (Mixtral)\n"
+        "🧠 /brainon — Enable AI Brain\n"
+        "🧠 /brainoff — Disable AI Brain\n"
         "🤐 /help — This magical menu again",
         parse_mode="HTML"
     )
 
-async def brain_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def brainon(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_user_data(update.effective_user.id)
-    arg = context.args[0].lower() if context.args else ""
-    if arg == "on":
-        user["brain_on"] = True
-        await update.message.reply_text("🧠 CLAWSCore Brain is now ON. Mixtral AI is thinking with you.")
-    elif arg == "off":
-        user["brain_on"] = False
-        await update.message.reply_text("🧠 Brain is OFF. Back to default core logic.")
-    else:
-        await update.message.reply_text("❌ Use /brain on or /brain off to toggle.")
+    user["brain_on"] = True
+    await update.message.reply_text("🧠 CLAWSCore Brain is now ON. Mixtral AI is thinking with you.")
+
+async def brainoff(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = get_user_data(update.effective_user.id)
+    user["brain_on"] = False
+    await update.message.reply_text("🧠 Brain is OFF. Back to default core logic.")
 
 async def learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -220,7 +218,7 @@ async def achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
-# ---------- MESSAGE HANDLER ---------- #
+# ---------- MESSAGE HANDLER ----------
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = get_user_data(update.effective_user.id)
@@ -229,11 +227,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user.get("brain_on"):
         response = await ask_mixtral(text)
     else:
-        response = "🧠 Brain is OFF. Use /help or /brain on to enable AI."
+        response = "🧠 Brain is OFF. Use /brainon to enable AI."
 
     await update.message.reply_text(response)
 
-# ---------- MAIN ---------- #
+# ---------- MAIN ----------
 
 def main():
     token = os.environ["BOT_TOKEN"]
@@ -249,9 +247,8 @@ def main():
     app.add_handler(CommandHandler("profile", profile))
     app.add_handler(CommandHandler("badge", badge))
     app.add_handler(CommandHandler("achievements", achievements))
-    app.add_handler(CommandHandler("brain", brain_toggle))
-
-    # AI router for free text input
+    app.add_handler(CommandHandler("brainon", brainon))
+    app.add_handler(CommandHandler("brainoff", brainoff))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("✅ CLAWSCore is running (polling mode)")
