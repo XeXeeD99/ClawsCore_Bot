@@ -1,243 +1,192 @@
-import logging
 import os
 import asyncio
 from aiohttp import web
 from telegram import Update
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, ContextTypes
+    Application,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
 )
 
-# === LOGGING ===
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
+# In-memory user data
+users = {}
 
-# === ENV VARIABLES ===
-TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")
-PORT = int(os.environ.get("PORT", 5000))
-
-if not TOKEN or not WEBHOOK_HOST:
-    raise RuntimeError("Missing BOT_TOKEN or WEBHOOK_HOST in environment variables.")
-
-WEBHOOK_PATH = f"/webhook/{TOKEN}"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-
-# === DATA STORE ===
-user_data = {}
-
+# XP rank tiers
 ranks = [
-    (0, "📘 Newbie Analyst"),
-    (300, "📈 Chart Reader"),
-    (800, "📊 Candle Whisperer"),
-    (1500, "🔍 Market Watcher"),
-    (2500, "🧠 Pattern Disciple"),
-    (4000, "📡 Signal Seeker"),
-    (6000, "💠 Technical Adept"),
-    (9000, "🎯 Entry Strategist"),
-    (13000, "🧙‍♂️ Indicator Sage"),
-    (17000, "🚀 Profit Chaser"),
-    (20000, "💀 Profit Reaper"),
-    (25000, "👑 CLAWSCore Elite")
+    (0, "🧠 Beginner Mind"),
+    (500, "🎯 Focused Learner"),
+    (1_000, "🛠 Strategy Sculptor"),
+    (2_000, "📈 Signal Seeker"),
+    (4_000, "🧬 Logic Alchemist"),
+    (6_000, "🚀 Market Specialist"),
+    (10_000, "🧠 Neural Analyst"),
+    (15_000, "🔮 Visionary Trader"),
+    (20_000, "💀 Profit Reaper"),
+    (30_000, "🌌 CLAWSCore Elite"),
 ]
 
-badge_thresholds = {
-    "Pattern Pro": 5,
-    "XP Novice": 1000,
-    "XP Expert": 5000,
-    "Rank Master": "🧙‍♂️ Indicator Sage"
+badges = {
+    5: "🎓 First 5 Patterns",
+    10: "📘 Tactical Archivist",
+    20: "🧠 Memory Hoarder",
 }
 
-# === UTILS ===
+# --------- UTILITIES --------- #
+
+def get_user_data(user_id):
+    if user_id not in users:
+        users[user_id] = {
+            "xp": 0,
+            "patterns": {},
+            "badges": [],
+        }
+    return users[user_id]
+
 def get_rank(xp):
-    for i in range(len(ranks) - 1, -1, -1):
-        if xp >= ranks[i][0]:
-            return ranks[i][1]
-    return ranks[0][1]
+    current_rank = ranks[0][1]
+    for threshold, rank in ranks:
+        if xp >= threshold:
+            current_rank = rank
+    return current_rank
 
-def get_next_rank(xp):
-    for r in ranks:
-        if xp < r[0]:
-            return r[1], r[0]
-    return None, None
+def get_next_xp_target(xp):
+    for threshold, _ in ranks:
+        if xp < threshold:
+            return threshold
+    return ranks[-1][0]
 
-def get_progress_bar(xp):
-    current_rank = get_rank(xp)
-    next_rank, next_xp = get_next_rank(xp)
-    if not next_rank:
-        return "\n\U0001F31F Max Rank Achieved"
-    prev_xp = 0
-    for r in ranks:
-        if r[1] == current_rank:
-            prev_xp = r[0]
-            break
-    filled = int(((xp - prev_xp) / (next_xp - prev_xp)) * 10)
-    return "\n[{}{}]".format('\U0001F537' * filled, '⬜' * (10 - filled))
+def generate_progress_bar(xp):
+    total = get_next_xp_target(xp)
+    filled = int((xp / total) * 10)
+    bar = "🟩" * filled + "⬛" * (10 - filled)
+    return f"{bar} {xp}/{total} XP"
 
-def check_badges(user):
-    badges = set(user_data[user]["badges"])
-    new_badges = []
+def check_badges(user_id):
+    user = get_user_data(user_id)
+    unlocked = []
+    count = len(user["patterns"])
+    for num, badge in badges.items():
+        if count >= num and badge not in user["badges"]:
+            user["badges"].append(badge)
+            unlocked.append(badge)
+    return unlocked
 
-    if len(user_data[user]["patterns"]) >= badge_thresholds["Pattern Pro"]:
-        new_badges.append("Pattern Pro")
-    if user_data[user]["xp"] >= badge_thresholds["XP Novice"]:
-        new_badges.append("XP Novice")
-    if user_data[user]["xp"] >= badge_thresholds["XP Expert"]:
-        new_badges.append("XP Expert")
-    if get_rank(user_data[user]["xp"]) == badge_thresholds["Rank Master"]:
-        new_badges.append("Rank Master")
+# --------- COMMANDS --------- #
 
-    for badge in new_badges:
-        if badge not in badges:
-            user_data[user]["badges"].append(badge)
-
-# === COMMAND HANDLERS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
-    await update.message.reply_text(
-        "\U0001F44B Welcome to *CLAWSCore*\n\nUse /help to explore your tools!",
-        parse_mode="MarkdownV2"
-    )
+    await update.message.reply_text("Welcome to CLAWSCore 🧠 — Your Trading Pattern Memory System.\nUse /help to see commands.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "\U0001F9F0 *CLAWSCore Help Guide*\n\n"
-        "\U0001F4E5 /learn - Save a new trading pattern\n"
-        "\U0001F4C2 /patterns - View saved patterns\n"
-        "\U0001F4CA /xp - View XP & rank progress\n"
-        "\U0001F5D1️ /delete [name] - Remove a pattern\n"
-        "✏️ /edit [name] - Modify a pattern\n"
-        "🎖 /badge - View unlocked badges",
-        parse_mode="MarkdownV2"
-    )
-
-async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    xp = user_data.get(user_id, {}).get("xp", 0)
-    rank = get_rank(xp)
-    next_rank, next_xp = get_next_rank(xp)
-    progress = get_progress_bar(xp)
-    check_badges(user_id)
-
-    msg = f"\U0001F3C6 *Your XP Journey*\n\n"
-    msg += f"\u2728 XP: `{xp}`\n"
-    msg += f"🎖 Rank: *{rank}*\n"
-    if next_rank:
-        msg += f"\n\U0001F4C8 Next: *{next_rank}* at `{next_xp}` XP"
-    msg += progress
-
-    await update.message.reply_text(msg, parse_mode="MarkdownV2")
+    await update.message.reply_text("""
+📘 *CLAWSCore Commands*
+/learn [name] | [strategy] — Learn & save a pattern (+100 XP)
+/edit [name] | [new strategy] — Edit a saved pattern
+/delete [name] — Delete a saved pattern
+/patterns — List all your patterns
+/xp — View XP, rank & progress
+/badge — See unlocked badges
+/help — Show this help message
+""", parse_mode="Markdown")
 
 async def learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    args = context.args
-    if not args:
-        await update.message.reply_text("Usage: /learn [pattern name] - [description]")
-        return
-    text = ' '.join(args)
-    if '-' not in text:
-        await update.message.reply_text("Please use '-' to separate the pattern name and description.")
-        return
-    name, desc = map(str.strip, text.split('-', 1))
-    user_data[user_id]["patterns"][name] = desc
-    user_data[user_id]["xp"] += 100
-    check_badges(user_id)
-    await update.message.reply_text(f"✅ Pattern '{name}' saved! You earned 100 XP.")
+    try:
+        content = update.message.text.split(" ", 1)[1]
+        name, strategy = map(str.strip, content.split("|", 1))
+        user = get_user_data(update.effective_user.id)
+        user["patterns"][name] = strategy
+        user["xp"] += 100
+        new_badges = check_badges(update.effective_user.id)
+        await update.message.reply_text(
+            f"📌 Learned pattern: *{name}*\n+100 XP!\n{generate_progress_bar(user['xp'])}\n🏅 Rank: {get_rank(user['xp'])}" +
+            (f"\n\n🎖 New Badges: {', '.join(new_badges)}" if new_badges else ""),
+            parse_mode="Markdown"
+        )
+    except:
+        await update.message.reply_text("Usage: /learn name | strategy")
 
 async def patterns(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    patterns = user_data[user_id].get("patterns", {})
-    if not patterns:
-        await update.message.reply_text("No patterns saved yet.")
+    user = get_user_data(update.effective_user.id)
+    if not user["patterns"]:
+        await update.message.reply_text("You haven't saved any patterns yet.")
         return
-    msg = "\U0001F4C2 *Your Patterns*\n\n"
-    for name, desc in patterns.items():
-        msg += f"- *{name}*: {desc}\n"
-    await update.message.reply_text(msg, parse_mode="MarkdownV2")
-
-async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    args = context.args
-    if not args:
-        await update.message.reply_text("Usage: /delete [pattern name]")
-        return
-    name = ' '.join(args)
-    if name in user_data[user_id]["patterns"]:
-        del user_data[user_id]["patterns"][name]
-        await update.message.reply_text(f"🗑️ Pattern '{name}' deleted.")
-    else:
-        await update.message.reply_text("Pattern not found.")
+    msg = "\n".join([f"• *{k}*: {v}" for k, v in user["patterns"].items()])
+    await update.message.reply_text(f"🧠 *Your Patterns:*\n{msg}", parse_mode="Markdown")
 
 async def edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    args = context.args
-    if not args:
-        await update.message.reply_text("Usage: /edit [pattern name] - [new description]")
-        return
-    text = ' '.join(args)
-    if '-' not in text:
-        await update.message.reply_text("Please use '-' to separate the name and new description.")
-        return
-    name, desc = map(str.strip, text.split('-', 1))
-    if name not in user_data[user_id]["patterns"]:
-        await update.message.reply_text("Pattern not found.")
-        return
-    user_data[user_id]["patterns"][name] = desc
-    await update.message.reply_text(f"✏️ Pattern '{name}' updated.")
+    try:
+        content = update.message.text.split(" ", 1)[1]
+        name, new_strategy = map(str.strip, content.split("|", 1))
+        user = get_user_data(update.effective_user.id)
+        if name in user["patterns"]:
+            user["patterns"][name] = new_strategy
+            await update.message.reply_text(f"✅ Updated pattern *{name}*", parse_mode="Markdown")
+        else:
+            await update.message.reply_text("Pattern not found.")
+    except:
+        await update.message.reply_text("Usage: /edit name | new strategy")
+
+async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        name = update.message.text.split(" ", 1)[1].strip()
+        user = get_user_data(update.effective_user.id)
+        if name in user["patterns"]:
+            del user["patterns"][name]
+            await update.message.reply_text(f"🗑 Deleted pattern *{name}*", parse_mode="Markdown")
+        else:
+            await update.message.reply_text("Pattern not found.")
+    except:
+        await update.message.reply_text("Usage: /delete name")
+
+async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = get_user_data(update.effective_user.id)
+    rank = get_rank(user["xp"])
+    progress = generate_progress_bar(user["xp"])
+    await update.message.reply_text(
+        f"🏅 *Your Rank:* {rank}\n{progress}",
+        parse_mode="Markdown"
+    )
 
 async def badge(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    check_badges(user_id)
-    badges = user_data[user_id].get("badges", [])
-    if not badges:
-        await update.message.reply_text("You haven't earned any badges yet.")
-        return
-    msg = "🎖 *Your Badges*\n\n"
-    for badge in badges:
-        msg += f"🏅 {badge}\n"
-    await update.message.reply_text(msg, parse_mode="MarkdownV2")
+    user = get_user_data(update.effective_user.id)
+    if not user["badges"]:
+        await update.message.reply_text("You haven't unlocked any badges yet.")
+    else:
+        await update.message.reply_text(f"🎖 *Badges:* {', '.join(user['badges'])}", parse_mode="Markdown")
 
-# === MAIN ===
+# --------- MAIN APP --------- #
+
 async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    token = os.environ["BOT_TOKEN"]
+    app = Application.builder().token(token).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("xp", xp))
     app.add_handler(CommandHandler("learn", learn))
     app.add_handler(CommandHandler("patterns", patterns))
-    app.add_handler(CommandHandler("delete", delete))
     app.add_handler(CommandHandler("edit", edit))
+    app.add_handler(CommandHandler("delete", delete))
+    app.add_handler(CommandHandler("xp", xp))
     app.add_handler(CommandHandler("badge", badge))
 
+    # Webhook setup
+    async def handler(request):
+        data = await request.json()
+        await app.update_queue.put(Update.de_json(data, app.bot))
+        return web.Response(text="ok")
+
+    webhook_app = web.Application()
+    webhook_app.add_routes([web.post("/", handler)])
     await app.initialize()
-    await app.bot.set_webhook(WEBHOOK_URL)
-    logger.info(f"✅ Webhook set to {WEBHOOK_URL}")
-
-    async def handle(request):
-        try:
-            data = await request.json()
-            update = Update.de_json(data, app.bot)
-            await app.process_update(update)
-        except Exception as e:
-            logger.error(f"❌ Failed to process update: {e}")
-        return web.Response(text="OK")
-
-    aio_app = web.Application()
-    aio_app.router.add_post(WEBHOOK_PATH, handle)
-    aio_app.router.add_get("/", lambda request: web.Response(text="CLAWSCore Bot is running 🐾"))
-
-    runner = web.AppRunner(aio_app)
+    await app.start()
+    await app.bot.set_webhook(os.environ["WEBHOOK_URL"])
+    runner = web.AppRunner(webhook_app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    logger.info(f"🚀 CLAWSCore running on port {PORT}")
+    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8080)))
     await site.start()
-
-    while True:
-        await asyncio.sleep(3600)
+    print("CLAWSCore is live.")
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
