@@ -7,16 +7,14 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, ContextTypes
 )
 
-# === LOGGING ===
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# === ENVIRONMENT VARIABLES ===
 TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")  # e.g. https://your-app.onrender.com
+WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")
 PORT = int(os.environ.get("PORT", 5000))
 
 if not TOKEN or not WEBHOOK_HOST:
@@ -25,28 +23,27 @@ if not TOKEN or not WEBHOOK_HOST:
 WEBHOOK_PATH = f"/webhook/{TOKEN}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
-# === USER DATA (IN-MEMORY) ===
 user_data = {}
 
 ranks = [
-    (0, "\U0001F4D8 Newbie Analyst"),
-    (300, "\U0001F4C8 Chart Reader"),
-    (800, "\U0001F4CA Candle Whisperer"),
-    (1500, "\U0001F50D Market Watcher"),
-    (2500, "\U0001F9E0 Pattern Disciple"),
-    (4000, "\U0001F4E1 Signal Seeker"),
-    (6000, "\U0001F4A0 Technical Adept"),
-    (9000, "\U0001F3AF Entry Strategist"),
-    (13000, "\U0001F9D9‍♂️ Indicator Sage"),
-    (17000, "\U0001F680 Profit Chaser"),
-    (20000, "\U0001F480 Profit Reaper")
+    (0, "📘 Newbie Analyst"),
+    (300, "📈 Chart Reader"),
+    (800, "📊 Candle Whisperer"),
+    (1500, "🔍 Market Watcher"),
+    (2500, "🧠 Pattern Disciple"),
+    (4000, "📡 Signal Seeker"),
+    (6000, "💠 Technical Adept"),
+    (9000, "🎯 Entry Strategist"),
+    (13000, "🧙‍♂️ Indicator Sage"),
+    (17000, "🚀 Profit Chaser"),
+    (20000, "💀 Profit Reaper")
 ]
 
 badge_thresholds = {
     "Pattern Pro": 5,
     "XP Novice": 1000,
     "XP Expert": 5000,
-    "Rank Master": "\U0001F9D9‍♂️ Indicator Sage"
+    "Rank Master": "🧙‍♂️ Indicator Sage"
 }
 
 def get_rank(xp):
@@ -65,14 +62,14 @@ def get_progress_bar(xp):
     current_rank = get_rank(xp)
     next_rank, next_xp = get_next_rank(xp)
     if not next_rank:
-        return "\n\U0001F31F Max Rank Achieved"
+        return "\n🌟 Max Rank Achieved"
     prev_xp = 0
     for r in ranks:
         if r[1] == current_rank:
             prev_xp = r[0]
             break
     filled = int(((xp - prev_xp) / (next_xp - prev_xp)) * 10)
-    return "\n[{}{}]".format('\U0001F537' * filled, '⬜' * (10 - filled))
+    return "\n[{}{}]".format('🔷' * filled, '⬜' * (10 - filled))
 
 def check_badges(user):
     badges = set(user_data[user]["badges"])
@@ -91,25 +88,25 @@ def check_badges(user):
         if badge not in badges:
             user_data[user]["badges"].append(badge)
 
-# === COMMAND HANDLERS ===
+# === COMMANDS ===
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
     await update.message.reply_text(
-        "\U0001F44B Welcome to CLAWSCore\n\nUse /help to explore your tools!",
+        "👋 Welcome to CLAWSCore\n\nUse /help to explore your tools!",
         parse_mode="MarkdownV2"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "\U0001F9F0 CLAWSCore Help Guide\n\n"
-        "\U0001F4E5 /learn - Save a new trading pattern\n"
-        "\U0001F4C2 /patterns - View saved patterns\n"
-        "\U0001F4CA /xp - View XP & rank progress\n"
-        "\U0001F5D1️ /delete [name] - Remove a pattern\n"
+        "🧰 *CLAWSCore Help*\n\n"
+        "📥 /learn - Save a new trading pattern\n"
+        "📂 /patterns - View saved patterns\n"
+        "📊 /xp - View XP & rank progress\n"
+        "🗑️ /delete [name] - Remove a pattern\n"
         "✏️ /edit [name] - Modify a pattern\n"
-        "\U0001F396 /badge - View unlocked badges",
+        "🎖 /badge - View unlocked badges",
         parse_mode="MarkdownV2"
     )
 
@@ -121,11 +118,11 @@ async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     progress = get_progress_bar(xp)
     check_badges(user_id)
 
-    msg = f"\U0001F3C6 *Your XP Journey*\n\n"
-    msg += f"\u2728 XP: `{xp}`\n"
-    msg += f"\U0001F396️ Rank: *{rank}*\n"
+    msg = f"🏆 *Your XP Journey*\n\n"
+    msg += f"✨ XP: `{xp}`\n"
+    msg += f"🎖 Rank: *{rank}*\n"
     if next_rank:
-        msg += f"\U0001F4C8 Next: *{next_rank}* at `{next_xp}` XP"
+        msg += f"\n📈 Next: *{next_rank}* at `{next_xp}` XP"
     msg += progress
 
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
@@ -152,9 +149,9 @@ async def patterns(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not patterns:
         await update.message.reply_text("No patterns saved yet.")
         return
-    msg = "\U0001F4C2 Your Patterns\n\n"
+    msg = "📂 *Your Patterns*\n\n"
     for name, desc in patterns.items():
-        msg += f"- {name}: {desc}\n"
+        msg += f"- *{name}*: {desc}\n"
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
 async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -194,7 +191,7 @@ async def badge(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not badges:
         await update.message.reply_text("You haven't earned any badges yet.")
         return
-    msg = "\U0001F3C5 Your Badges\n\n"
+    msg = "🎖 *Your Badges*\n\n"
     for badge in badges:
         msg += f"🏅 {badge}\n"
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
