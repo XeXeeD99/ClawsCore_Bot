@@ -4,7 +4,7 @@ from telegram.ext import (ApplicationBuilder, CommandHandler, ContextTypes, Mess
                           filters, ConversationHandler, CallbackQueryHandler)
 import os
 
-TOKEN = "8329675796:AAHEGO7MokUPI1FmqevdCl56tuceVMawxyY"
+TOKEN = os.environ.get("BOT_TOKEN")  # Token should be stored securely in env vars
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -45,38 +45,36 @@ def get_progress_bar(xp):
     current_rank = get_rank(xp)
     next_rank, next_xp = get_next_rank(xp)
     if not next_rank:
-        return "🌟 Max Rank Achieved"
+        return "\n🌟 Max Rank Achieved"
     prev_xp = 0
     for r in ranks:
         if r[1] == current_rank:
             prev_xp = r[0]
             break
     filled = int(((xp - prev_xp) / (next_xp - prev_xp)) * 10)
-    return f"[{ '🟦' * filled }{ '⬜' * (10 - filled) }]"
+    return f"\n[{ '🟦' * filled }{ '⬜' * (10 - filled) }]"
 
-# Command Handlers
+# Commands
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
     await update.message.reply_text(
-        "👋 *Welcome to CLAWSCore!*\n\nUse /help to see what I can do.",
-        parse_mode="MarkdownV2"
-    )
+        "👋 Welcome to *CLAWSCore*\n\nUse /help to explore your tools!",
+        parse_mode="MarkdownV2")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🛠️ *CLAWSCore Command Guide*\n\n"
-        "📌 /learn - Save a new trading pattern\n"
-        "📌 /patterns - View saved patterns\n"
-        "📌 /xp - Check your XP & rank\n"
-        "📌 /delete [name] - Delete a saved pattern\n"
-        "📌 /edit [name] - Edit a pattern\n"
-        "📌 /test - Start a pattern testing session\n"
-        "📌 /train - Simulate pattern usage\n"
-        "📌 /badge - View unlocked badges\n\n"
-        "More coming soon 🐾",
-        parse_mode="MarkdownV2"
-    )
+        "🧰 *CLAWSCore Help Guide*\n\n"
+        "📥 /learn - Save a new trading pattern\n"
+        "📂 /patterns - View saved patterns\n"
+        "📊 /xp - View XP & rank progress\n"
+        "🗑️ /delete [name] - Remove a pattern\n"
+        "✏️ /edit [name] - Modify a pattern\n"
+        "🧪 /test - Quiz yourself with saved patterns\n"
+        "🎓 /train - Run a strategy simulation\n"
+        "🏅 /badge - View unlocked badges\n\n"
+        "More trading magic coming soon ✨",
+        parse_mode="MarkdownV2")
 
 async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -84,89 +82,33 @@ async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     rank = get_rank(xp)
     next_rank, next_xp = get_next_rank(xp)
     progress = get_progress_bar(xp)
-    msg = f"🔹 *XP Status* 🔹\n\n✨ *Total XP:* {xp}\n🎖️ *Current Rank:* {rank}"
+
+    msg = f"🏆 *Your XP Journey*\n\n"
+    msg += f"✨ XP: `{xp}`\n"
+    msg += f"🎖️ Rank: *{rank}*\n"
     if next_rank:
-        msg += f"\n📈 *Next Rank:* {next_rank} ({next_xp} XP)"
-    msg += f"\n\n{progress}"
+        msg += f"📈 Next: *{next_rank}* at `{next_xp}` XP"
+    msg += progress
+
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
-# Placeholder for other command functions
-# Add /learn, /patterns, /delete, /edit, /test, /train, /badge implementations
+# Placeholder handlers for other features
+async def placeholder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🚧 This feature is coming soon!")
 
 if __name__ == '__main__':
+    if not TOKEN:
+        raise ValueError("Missing bot token!")
+
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("xp", xp))
 
-    logger.info("CLAWSCore Bot is running...")
-    app.run_polling()
+    # Placeholder for upcoming commands
+    for cmd in ["learn", "patterns", "delete", "edit", "test", "train", "badge"]:
+        app.add_handler(CommandHandler(cmd, placeholder))
 
-def get_next_rank(xp):
-    for r in ranks:
-        if xp < r[0]:
-            return r[1], r[0]
-    return None, None
-
-def get_progress_bar(xp):
-    current_rank = get_rank(xp)
-    next_rank, next_xp = get_next_rank(xp)
-    if not next_rank:
-        return "🌟 Max Rank Achieved"
-    prev_xp = 0
-    for r in ranks:
-        if r[1] == current_rank:
-            prev_xp = r[0]
-            break
-    filled = int(((xp - prev_xp) / (next_xp - prev_xp)) * 10)
-    return f"[{ '🟦' * filled }{ '⬜' * (10 - filled) }]"
-
-# Command Handlers
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
-    await update.message.reply_text(
-        "👋 *Welcome to CLAWSCore!*\n\nUse /help to see what I can do.",
-        parse_mode="MarkdownV2"
-    )
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "🛠️ *CLAWSCore Command Guide*\n\n"
-        "📌 /learn - Save a new trading pattern\n"
-        "📌 /patterns - View saved patterns\n"
-        "📌 /xp - Check your XP & rank\n"
-        "📌 /delete [name] - Delete a saved pattern\n"
-        "📌 /edit [name] - Edit a pattern\n"
-        "📌 /test - Start a pattern testing session\n"
-        "📌 /train - Simulate pattern usage\n"
-        "📌 /badge - View unlocked badges\n\n"
-        "More coming soon 🐾",
-        parse_mode="MarkdownV2"
-    )
-
-async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    xp = user_data.get(user_id, {}).get("xp", 0)
-    rank = get_rank(xp)
-    next_rank, next_xp = get_next_rank(xp)
-    progress = get_progress_bar(xp)
-    msg = f"🔹 *XP Status* 🔹\n\n✨ *Total XP:* {xp}\n🎖️ *Current Rank:* {rank}"
-    if next_rank:
-        msg += f"\n📈 *Next Rank:* {next_rank} ({next_xp} XP)"
-    msg += f"\n\n{progress}"
-    await update.message.reply_text(msg, parse_mode="MarkdownV2")
-
-# Placeholder for other command functions
-# Add /learn, /patterns, /delete, /edit, /test, /train, /badge implementations
-
-if __name__ == '__main__':
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("xp", xp))
-
-    logger.info("CLAWSCore Bot is running...")
+    logger.info("🤖 CLAWSCore is live and ready!")
     app.run_polling()
