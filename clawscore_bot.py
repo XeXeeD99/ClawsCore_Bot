@@ -17,14 +17,14 @@ users = {}
 ranks = [
     (0, "🧠 Beginner Mind"),
     (500, "🎯 Focused Learner"),
-    (1_000, "🛠 Strategy Sculptor"),
-    (2_000, "📈 Signal Seeker"),
-    (4_000, "🧬 Logic Alchemist"),
-    (6_000, "🚀 Market Specialist"),
-    (10_000, "🧠 Neural Analyst"),
-    (15_000, "🔮 Visionary Trader"),
-    (20_000, "💀 Profit Reaper"),
-    (30_000, "🌌 CLAWSCore Elite"),
+    (1000, "🖠 Strategy Sculptor"),
+    (2000, "📈 Signal Seeker"),
+    (4000, "🧬 Logic Alchemist"),
+    (6000, "🚀 Market Specialist"),
+    (10000, "🧠 Neural Analyst"),
+    (15000, "🔮 Visionary Trader"),
+    (20000, "💀 Profit Reaper"),
+    (30000, "🌌 CLAWSCore Elite"),
 ]
 
 badges = {
@@ -76,7 +76,7 @@ def check_badges(user_id):
 # --------- COMMANDS --------- #
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Welcome to CLAWSCore 🧠 — Your Trading Pattern Memory System.\nUse /help to see commands.")
+    await update.message.reply_text("Welcome to CLAWSCore 🧠 \u2014 Your Trading Pattern Memory System.\nUse /help to see commands.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("""
