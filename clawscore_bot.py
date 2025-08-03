@@ -1,20 +1,32 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler,
-                          filters, ConversationHandler, CallbackQueryHandler)
 import os
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, ContextTypes
+)
+from aiohttp import web
 
-TOKEN = os.environ.get("BOT_TOKEN")  # Token should be stored securely in env vars
+# === ENVIRONMENT VARIABLES ===
+TOKEN = os.environ.get("BOT_TOKEN")  # Set this in Render environment
+WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")  # e.g. https://your-app-name.onrender.com
+PORT = int(os.environ.get("PORT", 5000))  # Render assigns this automatically
 
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
+if not TOKEN or not WEBHOOK_HOST:
+    raise RuntimeError("Missing BOT_TOKEN or WEBHOOK_HOST in environment variables.")
+
+WEBHOOK_PATH = f"/webhook/{TOKEN}"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+
+# === LOGGING ===
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Memory and XP
+# === USER DATA (IN-MEMORY) ===
 user_data = {}
 
-# Rank system
 ranks = [
     (0, "📘 Newbie Analyst"),
     (300, "📈 Chart Reader"),
@@ -54,13 +66,14 @@ def get_progress_bar(xp):
     filled = int(((xp - prev_xp) / (next_xp - prev_xp)) * 10)
     return f"\n[{ '🟦' * filled }{ '⬜' * (10 - filled) }]"
 
-# Commands
+# === COMMAND HANDLERS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
     await update.message.reply_text(
-        "👋 Welcome to *CLAWSCore*\n\nUse /help to explore your tools!",
-        parse_mode="MarkdownV2")
+        "👋 Welcome to CLAWSCore\n\nUse /help to explore your tools!",
+        parse_mode="MarkdownV2"
+    )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -74,7 +87,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎓 /train - Run a strategy simulation\n"
         "🏅 /badge - View unlocked badges\n\n"
         "More trading magic coming soon ✨",
-        parse_mode="MarkdownV2")
+        parse_mode="MarkdownV2"
+    )
 
 async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -92,23 +106,43 @@ async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
-# Placeholder handlers for other features
 async def placeholder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚧 This feature is coming soon!")
 
-if __name__ == '__main__':
-    if not TOKEN:
-        raise ValueError("Missing bot token!")
-
+# === MAIN ===
+async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("xp", xp))
 
-    # Placeholder for upcoming commands
     for cmd in ["learn", "patterns", "delete", "edit", "test", "train", "badge"]:
         app.add_handler(CommandHandler(cmd, placeholder))
 
-    logger.info("🤖 CLAWSCore is live and ready!")
-    app.run_polling()
+    # Root route (for sanity check or Render's health check)
+    async def index(request):
+        return web.Response(text="CLAWSCore Bot is running 🐾")
+
+    app.web_app.add_routes([
+        web.get("/", index)
+    ])
+
+    # Set webhook on startup
+    async def on_startup(application):
+        await application.bot.set_webhook(WEBHOOK_URL)
+        logger.info(f"Webhook set to: {WEBHOOK_URL}")
+
+    app.post_init = on_startup
+
+    # Run with webhook
+    logger.info("🚀 Starting CLAWSCore via webhook")
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_path=WEBHOOK_PATH,
+    )
+
+if __name__ == '__main__':
+    import asyncio
+    asyncio.run(main())
