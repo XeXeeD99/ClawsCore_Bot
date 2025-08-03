@@ -1,31 +1,32 @@
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler,
+                          filters, ConversationHandler, CallbackQueryHandler)
+import os
 
-# Memory Bank to store trading patterns
-trading_patterns = {}
+TOKEN = "8329675796:AAHEGO7MokUPI1FmqevdCl56tuceVMawxyY"
 
-# XP system
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Memory and XP
 user_data = {}
 
-# Rank thresholds
+# Rank system
 ranks = [
-    (0, "Rookie 🐣"),
-    (300, "Observer 👀"),
-    (700, "Trainee Trader 💼"),
-    (1200, "Analyst 📊"),
-    (1800, "Pattern Scout 🧠"),
-    (2500, "Strategist ♟️"),
-    (3500, "Risk Handler ⚖️"),
-    (4800, "Sniper 🎯"),
-    (6000, "Momentum Rider 🚀"),
-    (7500, "Signal Master 📡"),
-    (9000, "Shadow Trader 👤"),
-    (11000, "Chart Phantom 👻"),
-    (13000, "Volatility Viper 🐍"),
-    (15000, "Risk Taker ⚠️"),
-    (17500, "Execution Ace 🧨"),
-    (20000, "Profit Reaper ☠️")
+    (0, "📘 Newbie Analyst"),
+    (300, "📈 Chart Reader"),
+    (800, "📊 Candle Whisperer"),
+    (1500, "🔍 Market Watcher"),
+    (2500, "🧠 Pattern Disciple"),
+    (4000, "📡 Signal Seeker"),
+    (6000, "📐 Technical Adept"),
+    (9000, "🎯 Entry Strategist"),
+    (13000, "🧙‍♂️ Indicator Sage"),
+    (17000, "🚀 Profit Chaser"),
+    (20000, "💀 Profit Reaper")
 ]
 
 def get_rank(xp):
@@ -34,128 +35,70 @@ def get_rank(xp):
             return ranks[i][1]
     return ranks[0][1]
 
-def progress_bar(xp):
-    current_rank = None
-    next_rank = None
-    for i in range(len(ranks) - 1):
-        if ranks[i][0] <= xp < ranks[i + 1][0]:
-            current_rank = ranks[i]
-            next_rank = ranks[i + 1]
-            break
-    if xp >= ranks[-1][0]:
-        return "🟩" * 20 + f"  (MAX)"
-    if current_rank and next_rank:
-        progress = int(20 * (xp - current_rank[0]) / (next_rank[0] - current_rank[0]))
-        return "🟩" * progress + "⬜" * (20 - progress) + f"  ({xp}/{next_rank[0]} XP)"
-    return "⬜" * 20 + f"  ({xp} XP)"
+def get_next_rank(xp):
+    for r in ranks:
+        if xp < r[0]:
+            return r[1], r[0]
+    return None, None
 
+def get_progress_bar(xp):
+    current_rank = get_rank(xp)
+    next_rank, next_xp = get_next_rank(xp)
+    if not next_rank:
+        return "🌟 Max Rank Achieved"
+    prev_xp = 0
+    for r in ranks:
+        if r[1] == current_rank:
+            prev_xp = r[0]
+            break
+    filled = int(((xp - prev_xp) / (next_xp - prev_xp)) * 10)
+    return f"[{ '🟦' * filled }{ '⬜' * (10 - filled) }]"
+
+# Command Handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
     await update.message.reply_text(
-        "👋 Welcome to CLAWSCore Bot — your AI trading apprentice.\n\nUse /help to see what I can do."
+        "👋 **Welcome to CLAWSCore!**\n\nUse /help to see what I can do.",
+        parse_mode="MarkdownV2"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "📘 *CLAWSCore Commands*\n\n"
-        "/learn [pattern] - Teach a trading pattern\n"
-        "/patterns - List saved patterns\n"
-        "/delete [pattern name] - Delete a pattern\n"
-        "/edit [old] [new] - Edit a pattern\n"
-        "/xp - View your XP, rank, and progress\n"
-        "/profile - See your CLAWSCore status\n"
-        "/rank - Show your current rank\n"
-        "\nMore coming soon. Type smart, rank up faster."
+        "🛠️ *CLAWSCore Command Guide*\n\n"
+        "📌 /learn - Save a new trading pattern\n"
+        "📌 /patterns - View saved patterns\n"
+        "📌 /xp - Check your XP & rank\n"
+        "📌 /delete [name] - Delete a saved pattern\n"
+        "📌 /edit [name] - Edit a pattern\n"
+        "📌 /test - Start a pattern testing session\n"
+        "📌 /train - Simulate pattern usage\n"
+        "📌 /badge - View unlocked badges\n\n"
+        "More coming soon \U0001F43E",
+        parse_mode="MarkdownV2"
     )
-
-async def learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = " ".join(context.args)
-    if not text:
-        await update.message.reply_text("❌ Please provide a pattern to learn.")
-        return
-    user_data.setdefault(user_id, {"xp": 0, "patterns": {}})
-    user_data[user_id]["patterns"][text] = True
-    user_data[user_id]["xp"] += 70  # +70 XP per learning
-    rank = get_rank(user_data[user_id]["xp"])
-    await update.message.reply_text(
-        f"✅ Pattern learned!\n+70 XP gained.\n\nCurrent Rank: *{rank}*\n{progress_bar(user_data[user_id]['xp'])}"
-    )
-
-async def patterns(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    patterns = user_data.get(user_id, {}).get("patterns", {})
-    if not patterns:
-        await update.message.reply_text("📭 No patterns learned yet.")
-    else:
-        await update.message.reply_text("📚 *Your Trading Patterns:*\n\n" + "\n".join(patterns.keys()))
-
-async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    name = " ".join(context.args)
-    if name in user_data.get(user_id, {}).get("patterns", {}):
-        del user_data[user_id]["patterns"][name]
-        await update.message.reply_text(f"🗑️ Deleted pattern: {name}")
-    else:
-        await update.message.reply_text("❌ Pattern not found.")
-
-async def edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    args = context.args
-    if len(args) < 2:
-        await update.message.reply_text("❌ Usage: /edit [old name] [new name]")
-        return
-    old = args[0]
-    new = " ".join(args[1:])
-    if old in user_data.get(user_id, {}).get("patterns", {}):
-        del user_data[user_id]["patterns"][old]
-        user_data[user_id]["patterns"][new] = True
-        await update.message.reply_text(f"✏️ Renamed pattern '{old}' to '{new}'")
-    else:
-        await update.message.reply_text("❌ Pattern not found.")
 
 async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     xp = user_data.get(user_id, {}).get("xp", 0)
     rank = get_rank(xp)
-    await update.message.reply_text(
-        f"🏅 *XP:* {xp}\n*Rank:* {rank}\n{progress_bar(xp)}"
-    )
+    next_rank, next_xp = get_next_rank(xp)
+    progress = get_progress_bar(xp)
+    msg = f"🔹 *XP Status* 🔹\n\n✨ *Total XP:* {xp}\n🎖️ *Current Rank:* {rank}"
+    if next_rank:
+        msg += f"\n📈 *Next Rank:* {next_rank} ({next_xp} XP)"
+    msg += f"\n\n{progress}"
+    await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
-async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    xp = user_data.get(user_id, {}).get("xp", 0)
-    rank = get_rank(xp)
-    count = len(user_data.get(user_id, {}).get("patterns", {}))
-    await update.message.reply_text(
-        f"👤 *CLAWSCore Profile*\n\n"
-        f"*XP:* {xp}\n"
-        f"*Rank:* {rank}\n"
-        f"*Patterns Learned:* {count}\n"
-        f"{progress_bar(xp)}"
-    )
+# Placeholder for other command functions
+# Add /learn, /patterns, /delete, /edit, /test, /train, /badge implementations
 
-async def rank_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    xp = user_data.get(user_id, {}).get("xp", 0)
-    current_rank = get_rank(xp)
-    await update.message.reply_text(f"🔰 Your current rank is: *{current_rank}*\n{progress_bar(xp)}")
-
-def main():
-    logging.basicConfig(level=logging.INFO)
-    app = ApplicationBuilder().token("8329675796:AAHEGO7MokUPI1FmqevdCl56tuceVMawxyY").build()
+if __name__ == '__main__':
+    app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("learn", learn))
-    app.add_handler(CommandHandler("patterns", patterns))
-    app.add_handler(CommandHandler("delete", delete))
-    app.add_handler(CommandHandler("edit", edit))
     app.add_handler(CommandHandler("xp", xp))
-    app.add_handler(CommandHandler("profile", profile))
-    app.add_handler(CommandHandler("rank", rank_command))
 
+    logger.info("CLAWSCore Bot is running...")
     app.run_polling()
-
-if __name__ == '__main__':
-    main()
-
