@@ -1,2 +1,2 @@
 worker: python clawscore_bot.py
-web: gunicorn clawscore_bot:app
+web: python clawscore_bot.py
