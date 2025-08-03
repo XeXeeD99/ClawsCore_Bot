@@ -2,6 +2,7 @@
 
 import os
 import asyncio
+from threading import Thread
 from aiohttp import web
 from telegram import Update
 from telegram.ext import (
@@ -161,6 +162,14 @@ async def badge(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
+# --------- DUMMY SERVER (RENDER PORT BINDING) --------- #
+
+def start_dummy_server():
+    dummy_app = web.Application()
+    dummy_app.router.add_get("/", lambda request: web.Response(text="CLAWSCore running..."))
+    port = int(os.environ.get("PORT", 10000))
+    web.run_app(dummy_app, port=port)
+
 # --------- MAIN APP --------- #
 
 async def main():
@@ -188,10 +197,14 @@ async def main():
     await app.bot.set_webhook(os.environ["WEBHOOK_URL"])
     runner = web.AppRunner(webhook_app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8080)))
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
     print("CLAWSCore is live.")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
+    # Run dummy server in separate thread to satisfy Render's port scan
+    Thread(target=start_dummy_server).start()
+
+    # Run Telegram bot app
     asyncio.run(main())
