@@ -1,8 +1,8 @@
 import os
-import asyncio
 from telegram import Update
 from telegram.ext import (
     Application,
+    ApplicationBuilder,
     CommandHandler,
     ContextTypes,
 )
@@ -162,7 +162,7 @@ async def badge(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --------- MAIN (Polling) --------- #
 
-async def main():
+def main():
     token = os.environ["BOT_TOKEN"]
     app = Application.builder().token(token).build()
 
@@ -176,7 +176,7 @@ async def main():
     app.add_handler(CommandHandler("badge", badge))
 
     print("✅ CLAWSCore is running (polling mode)")
-    await app.run_polling()
+    app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
