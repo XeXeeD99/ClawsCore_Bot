@@ -65,29 +65,29 @@ def get_progress_bar(xp):
             prev_xp = r[0]
             break
     filled = int(((xp - prev_xp) / (next_xp - prev_xp)) * 10)
-    return f"\n[{ '🟦' * filled }{ '⬜' * (10 - filled) }]"
+    return f"\n[{'🟦' * filled}{'⬜' * (10 - filled)}]"
 
 # === COMMAND HANDLERS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
     await update.message.reply_text(
-        "👋 Welcome to CLAWSCore\n\nUse /help to explore your tools!",
+        "👋 Welcome to *CLAWSCore*\n\nUse /help to explore your tools!",
         parse_mode="MarkdownV2"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🧰 *CLAWSCore Help Guide*\n\n"
-        "📥 /learn - Save a new trading pattern\n"
-        "📂 /patterns - View saved patterns\n"
-        "📊 /xp - View XP & rank progress\n"
-        "🗑️ /delete [name] - Remove a pattern\n"
-        "✏️ /edit [name] - Modify a pattern\n"
-        "🧪 /test - Quiz yourself with saved patterns\n"
-        "🎓 /train - Run a strategy simulation\n"
-        "🏅 /badge - View unlocked badges\n\n"
-        "More trading magic coming soon ✨",
+        "📥 /learn \- Save a new trading pattern\n"
+        "📂 /patterns \- View saved patterns\n"
+        "📊 /xp \- View XP & rank progress\n"
+        "🗑️ /delete [name] \- Remove a pattern\n"
+        "✏️ /edit [name] \- Modify a pattern\n"
+        "🧪 /test \- Quiz yourself with saved patterns\n"
+        "🎓 /train \- Run a strategy simulation\n"
+        "🏅 /badge \- View unlocked badges\n\n"
+        "✨ More trading magic coming soon \!",
         parse_mode="MarkdownV2"
     )
 
@@ -108,7 +108,10 @@ async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
 async def placeholder(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🚧 This feature is coming soon!")
+    await update.message.reply_text(
+        "🚧 *This feature is coming soon\!*\n\nHang tight for updates 💡",
+        parse_mode="MarkdownV2"
+    )
 
 # === MAIN FUNCTION ===
 async def main():
@@ -127,9 +130,12 @@ async def main():
 
     # aiohttp request handler
     async def handle(request):
-        data = await request.json()
-        update = Update.de_json(data, app.bot)
-        await app.process_update(update)
+        try:
+            data = await request.json()
+            update = Update.de_json(data, app.bot)
+            await app.process_update(update)
+        except Exception as e:
+            logger.error(f"❌ Failed to process update: {e}")
         return web.Response(text="OK")
 
     # aiohttp app and server
