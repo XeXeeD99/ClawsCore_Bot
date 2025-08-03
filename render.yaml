@@ -1,11 +1,7 @@
 services:
   - type: web
-    name: claws-core-bot
+    name: ClawsCoreBot
     env: python
+    buildCommand: ""
+    startCommand: gunicorn bot:app
     plan: free
-    branch: main
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python clawscore_bot.py"
-    envVars:
-      - key: BOT_TOKEN
-        sync: false
