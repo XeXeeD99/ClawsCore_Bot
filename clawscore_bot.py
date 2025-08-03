@@ -7,12 +7,14 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, ContextTypes
 )
 
+# === LOGGING ===
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+# === ENV VARIABLES ===
 TOKEN = os.environ.get("BOT_TOKEN")
 WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")
 PORT = int(os.environ.get("PORT", 5000))
@@ -23,6 +25,7 @@ if not TOKEN or not WEBHOOK_HOST:
 WEBHOOK_PATH = f"/webhook/{TOKEN}"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
+# === DATA STORE ===
 user_data = {}
 
 ranks = [
@@ -36,7 +39,8 @@ ranks = [
     (9000, "🎯 Entry Strategist"),
     (13000, "🧙‍♂️ Indicator Sage"),
     (17000, "🚀 Profit Chaser"),
-    (20000, "💀 Profit Reaper")
+    (20000, "💀 Profit Reaper"),
+    (25000, "👑 CLAWSCore Elite")
 ]
 
 badge_thresholds = {
@@ -46,6 +50,7 @@ badge_thresholds = {
     "Rank Master": "🧙‍♂️ Indicator Sage"
 }
 
+# === UTILS ===
 def get_rank(xp):
     for i in range(len(ranks) - 1, -1, -1):
         if xp >= ranks[i][0]:
@@ -62,14 +67,14 @@ def get_progress_bar(xp):
     current_rank = get_rank(xp)
     next_rank, next_xp = get_next_rank(xp)
     if not next_rank:
-        return "\n🌟 Max Rank Achieved"
+        return "\n\U0001F31F Max Rank Achieved"
     prev_xp = 0
     for r in ranks:
         if r[1] == current_rank:
             prev_xp = r[0]
             break
     filled = int(((xp - prev_xp) / (next_xp - prev_xp)) * 10)
-    return "\n[{}{}]".format('🔷' * filled, '⬜' * (10 - filled))
+    return "\n[{}{}]".format('\U0001F537' * filled, '⬜' * (10 - filled))
 
 def check_badges(user):
     badges = set(user_data[user]["badges"])
@@ -88,23 +93,22 @@ def check_badges(user):
         if badge not in badges:
             user_data[user]["badges"].append(badge)
 
-# === COMMANDS ===
-
+# === COMMAND HANDLERS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
     await update.message.reply_text(
-        "👋 Welcome to CLAWSCore\n\nUse /help to explore your tools!",
+        "\U0001F44B Welcome to *CLAWSCore*\n\nUse /help to explore your tools!",
         parse_mode="MarkdownV2"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🧰 *CLAWSCore Help*\n\n"
-        "📥 /learn - Save a new trading pattern\n"
-        "📂 /patterns - View saved patterns\n"
-        "📊 /xp - View XP & rank progress\n"
-        "🗑️ /delete [name] - Remove a pattern\n"
+        "\U0001F9F0 *CLAWSCore Help Guide*\n\n"
+        "\U0001F4E5 /learn - Save a new trading pattern\n"
+        "\U0001F4C2 /patterns - View saved patterns\n"
+        "\U0001F4CA /xp - View XP & rank progress\n"
+        "\U0001F5D1️ /delete [name] - Remove a pattern\n"
         "✏️ /edit [name] - Modify a pattern\n"
         "🎖 /badge - View unlocked badges",
         parse_mode="MarkdownV2"
@@ -118,11 +122,11 @@ async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     progress = get_progress_bar(xp)
     check_badges(user_id)
 
-    msg = f"🏆 *Your XP Journey*\n\n"
-    msg += f"✨ XP: `{xp}`\n"
+    msg = f"\U0001F3C6 *Your XP Journey*\n\n"
+    msg += f"\u2728 XP: `{xp}`\n"
     msg += f"🎖 Rank: *{rank}*\n"
     if next_rank:
-        msg += f"\n📈 Next: *{next_rank}* at `{next_xp}` XP"
+        msg += f"\n\U0001F4C8 Next: *{next_rank}* at `{next_xp}` XP"
     msg += progress
 
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
@@ -149,7 +153,7 @@ async def patterns(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not patterns:
         await update.message.reply_text("No patterns saved yet.")
         return
-    msg = "📂 *Your Patterns*\n\n"
+    msg = "\U0001F4C2 *Your Patterns*\n\n"
     for name, desc in patterns.items():
         msg += f"- *{name}*: {desc}\n"
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
@@ -196,8 +200,7 @@ async def badge(update: Update, context: ContextTypes.DEFAULT_TYPE):
         msg += f"🏅 {badge}\n"
     await update.message.reply_text(msg, parse_mode="MarkdownV2")
 
-# === MAIN FUNCTION ===
-
+# === MAIN ===
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
