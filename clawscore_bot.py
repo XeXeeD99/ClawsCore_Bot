@@ -1,21 +1,8 @@
 import logging
 import os
 from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, ContextTypes
-)
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from aiohttp import web
-
-# === ENVIRONMENT VARIABLES ===
-TOKEN = os.environ.get("BOT_TOKEN")  # Set this in Render environment
-WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")  # e.g. https://your-app-name.onrender.com
-PORT = int(os.environ.get("PORT", 5000))  # Render assigns this automatically
-
-if not TOKEN or not WEBHOOK_HOST:
-    raise RuntimeError("Missing BOT_TOKEN or WEBHOOK_HOST in environment variables.")
-
-WEBHOOK_PATH = f"/webhook/{TOKEN}"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 # === LOGGING ===
 logging.basicConfig(
@@ -23,6 +10,18 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# === ENVIRONMENT VARIABLES ===
+TOKEN = os.environ.get("BOT_TOKEN")
+WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")  # e.g. https://your-app-name.onrender.com
+PORT = int(os.environ.get("PORT", 5000))
+
+if not TOKEN or not WEBHOOK_HOST:
+    logger.error("❌ Missing BOT_TOKEN or WEBHOOK_HOST in environment variables.")
+    raise RuntimeError("Missing BOT_TOKEN or WEBHOOK_HOST in environment variables.")
+
+WEBHOOK_PATH = f"/webhook/{TOKEN}"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 # === USER DATA (IN-MEMORY) ===
 user_data = {}
@@ -113,30 +112,27 @@ async def placeholder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
 
+    # === Register Handlers ===
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("xp", xp))
-
     for cmd in ["learn", "patterns", "delete", "edit", "test", "train", "badge"]:
         app.add_handler(CommandHandler(cmd, placeholder))
 
-    # Root route (for sanity check or Render's health check)
+    # === Web Server ===
     async def index(request):
         return web.Response(text="CLAWSCore Bot is running 🐾")
 
-    app.web_app.add_routes([
-        web.get("/", index)
-    ])
+    app.web_app.add_routes([web.get("/", index)])
 
-    # Set webhook on startup
+    # === Set Webhook on startup ===
     async def on_startup(application):
         await application.bot.set_webhook(WEBHOOK_URL)
-        logger.info(f"Webhook set to: {WEBHOOK_URL}")
+        logger.info(f"✅ Webhook set to: {WEBHOOK_URL}")
 
     app.post_init = on_startup
 
-    # Run with webhook
-    logger.info("🚀 Starting CLAWSCore via webhook")
+    logger.info("🚀 Launching CLAWSCore with webhook...")
     await app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
