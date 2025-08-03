@@ -111,36 +111,42 @@ async def xp(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def placeholder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🚧 This feature is coming soon!")
 
-# === MAIN ===
+# === MAIN FUNCTION ===
 async def main():
-    application = ApplicationBuilder().token(TOKEN).build()
+    app = (
+        ApplicationBuilder()
+        .token(TOKEN)
+        .build()
+    )
 
-    # Register handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("xp", xp))
+    # Handlers
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("xp", xp))
     for cmd in ["learn", "patterns", "delete", "edit", "test", "train", "badge"]:
-        application.add_handler(CommandHandler(cmd, placeholder))
+        app.add_handler(CommandHandler(cmd, placeholder))
 
     # Set webhook
-    await application.bot.set_webhook(WEBHOOK_URL)
-    logger.info(f"✅ Webhook set to: {WEBHOOK_URL}")
+    await app.initialize()
+    await app.bot.set_webhook(WEBHOOK_URL)
 
-    # Create aiohttp app and routes
+    # aiohttp web server
     aio_app = web.Application()
-    aio_app.router.add_post(WEBHOOK_PATH, application.webhook_handler())
-    aio_app.router.add_get("/", lambda request: web.Response(text="CLAWSCore Bot is running 🐾"))
+    aio_app.add_routes([
+        web.post(WEBHOOK_PATH, app.webhook_handler),
+        web.get("/", lambda request: web.Response(text="CLAWSCore Bot is running 🐾"))
+    ])
 
-    # Start web server
     runner = web.AppRunner(aio_app)
     await runner.setup()
-    site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
     logger.info(f"🚀 CLAWSCore is live on port {PORT}")
     await site.start()
 
-    # Keep running
-    while True:
-        await asyncio.sleep(3600)
+    # Idle
+    await app.start()
+    await app.updater.start_polling()  # optional but required for some features
+    await app.updater.idle()
 
 if __name__ == "__main__":
     asyncio.run(main())
