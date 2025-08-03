@@ -16,11 +16,10 @@ logger = logging.getLogger(__name__)
 
 # === ENVIRONMENT VARIABLES ===
 TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")  # https://your-app-name.onrender.com
+WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")  # e.g. https://your-app.onrender.com
 PORT = int(os.environ.get("PORT", 5000))
 
 if not TOKEN or not WEBHOOK_HOST:
-    logger.error("❌ Missing BOT_TOKEN or WEBHOOK_HOST in environment variables.")
     raise RuntimeError("Missing BOT_TOKEN or WEBHOOK_HOST in environment variables.")
 
 WEBHOOK_PATH = f"/webhook/{TOKEN}"
@@ -113,13 +112,8 @@ async def placeholder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === MAIN FUNCTION ===
 async def main():
-    app = (
-        ApplicationBuilder()
-        .token(TOKEN)
-        .build()
-    )
+    app = ApplicationBuilder().token(TOKEN).build()
 
-    # Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("xp", xp))
@@ -129,24 +123,29 @@ async def main():
     # Set webhook
     await app.initialize()
     await app.bot.set_webhook(WEBHOOK_URL)
+    logger.info(f"✅ Webhook set to {WEBHOOK_URL}")
 
-    # aiohttp web server
+    # aiohttp request handler
+    async def handle(request):
+        data = await request.json()
+        update = Update.de_json(data, app.bot)
+        await app.process_update(update)
+        return web.Response(text="OK")
+
+    # aiohttp app and server
     aio_app = web.Application()
-    aio_app.add_routes([
-        web.post(WEBHOOK_PATH, app.webhook_handler),
-        web.get("/", lambda request: web.Response(text="CLAWSCore Bot is running 🐾"))
-    ])
+    aio_app.router.add_post(WEBHOOK_PATH, handle)
+    aio_app.router.add_get("/", lambda request: web.Response(text="CLAWSCore Bot is running 🐾"))
 
     runner = web.AppRunner(aio_app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
-    logger.info(f"🚀 CLAWSCore is live on port {PORT}")
+    logger.info(f"🚀 CLAWSCore running on port {PORT}")
     await site.start()
 
-    # Idle
-    await app.start()
-    await app.updater.start_polling()  # optional but required for some features
-    await app.updater.idle()
+    # Keep alive
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     asyncio.run(main())
