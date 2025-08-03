@@ -1,9 +1,5 @@
-# claws_bot.py
-
 import os
 import asyncio
-from threading import Thread
-from aiohttp import web
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -109,7 +105,7 @@ async def learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"📌 <b>Learned pattern:</b> {name}<br>➕ +100 XP!<br>{generate_progress_bar(user['xp'])}<br>🏅 <b>Rank:</b> {get_rank(user['xp'])}{badge_text}",
             parse_mode="HTML"
         )
-    except Exception as e:
+    except Exception:
         await update.message.reply_text("❌ Usage: /learn name | strategy")
 
 async def patterns(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,52 +160,23 @@ async def badge(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
-# --------- DUMMY SERVER (RENDER Port Binding) --------- #
-
-def start_dummy_server():
-    dummy_app = web.Application()
-    dummy_app.router.add_get("/", lambda request: web.Response(text="CLAWSCore is running 🧠"))
-    port = int(os.environ.get("PORT", 10000))
-    web.run_app(dummy_app, port=port)
-
-# --------- MAIN APP --------- #
+# --------- MAIN (Polling) --------- #
 
 async def main():
     token = os.environ["BOT_TOKEN"]
-    webhook_url = os.environ["WEBHOOK_URL"]
     app = Application.builder().token(token).build()
 
-    # Register commands
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("learn", learn))
-    app.add_handler(CommandHandler("patterns", patterns))
     app.add_handler(CommandHandler("edit", edit))
     app.add_handler(CommandHandler("delete", delete))
+    app.add_handler(CommandHandler("patterns", patterns))
     app.add_handler(CommandHandler("xp", xp))
     app.add_handler(CommandHandler("badge", badge))
 
-    # Telegram webhook handler
-    async def handler(request):
-        data = await request.json()
-        await app.update_queue.put(Update.de_json(data, app.bot))
-        return web.Response(text="ok")
-
-    webhook_app = web.Application()
-    webhook_app.add_routes([web.post("/", handler)])
-
-    await app.initialize()
-    await app.start()
-    await app.bot.set_webhook(webhook_url)
-
-    runner = web.AppRunner(webhook_app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
-    await site.start()
-
-    print("✅ CLAWSCore is LIVE!")
-    await asyncio.Event().wait()
+    print("✅ CLAWSCore is running (polling mode)")
+    await app.run_polling()
 
 if __name__ == "__main__":
-    Thread(target=start_dummy_server).start()
     asyncio.run(main())
