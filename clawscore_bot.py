@@ -59,7 +59,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_data.setdefault(user_id, {"xp": 0, "patterns": {}, "badges": []})
     await update.message.reply_text(
-        "👋 **Welcome to CLAWSCore!**\n\nUse /help to see what I can do.",
+        "👋 *Welcome to CLAWSCore!*\n\nUse /help to see what I can do.",
         parse_mode="MarkdownV2"
     )
 
@@ -74,7 +74,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 /test - Start a pattern testing session\n"
         "📌 /train - Simulate pattern usage\n"
         "📌 /badge - View unlocked badges\n\n"
-        "More coming soon \U0001F43E",
+        "More coming soon 🐾",
         parse_mode="MarkdownV2"
     )
 
