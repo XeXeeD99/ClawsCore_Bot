@@ -3,7 +3,9 @@ from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
+    MessageHandler,
     ContextTypes,
+    filters,
 )
 
 # In-memory user data
@@ -39,7 +41,12 @@ badges = {
 
 def get_user_data(user_id):
     if user_id not in users:
-        users[user_id] = {"xp": 0, "patterns": {}, "badges": []}
+        users[user_id] = {
+            "xp": 0,
+            "patterns": {},
+            "badges": [],
+            "brain_on": False  # brain toggle status
+        }
     return users[user_id]
 
 def get_rank(xp):
@@ -71,6 +78,12 @@ def check_badges(user_id):
             unlocked.append(badge_name)
     return unlocked
 
+# ---------- MIXTRAL PLACEHOLDER ---------- #
+
+async def ask_mixtral(prompt: str):
+    # Replace with actual Mixtral API integration
+    return f"🤖 [Mixtral AI Brain Responds]:\n{prompt}"
+
 # ---------- COMMANDS ---------- #
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -82,17 +95,30 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "<b>🧰 CLAWSCore Command Menu</b>\n\n"
-        "📚 /learn <i>name | strategy</i> — Save a new pattern (+100 XP)\n\n"
-        "✏️ /edit <i>name | new strategy</i> — Update an existing pattern\n\n"
-        "🗑️ /delete <i>name</i> — Delete a pattern\n\n"
-        "📖 /patterns — Show all your saved patterns\n\n"
-        "📊 /xp — View rank & XP progress\n\n"
-        "🧪 /profile — View full stats: XP, rank, patterns & badges\n\n"
-        "🎖️ /badge — View unlocked badges\n\n"
-        "🌟 /achievements — All possible ranks & badges\n\n"
+        "📚 /learn <i>name | strategy</i> — Save a new pattern (+100 XP)\n"
+        "✏️ /edit <i>name | new strategy</i> — Update an existing pattern\n"
+        "🗑️ /delete <i>name</i> — Delete a pattern\n"
+        "📖 /patterns — Show all your saved patterns\n"
+        "📊 /xp — View rank & XP progress\n"
+        "🧪 /profile — View full stats: XP, rank, patterns & badges\n"
+        "🎖️ /badge — View unlocked badges\n"
+        "🌟 /achievements — All possible ranks & badges\n"
+        "🧠 /brain on|off — Toggle AI Brain (Mixtral)\n"
         "🤐 /help — This magical menu again",
         parse_mode="HTML"
     )
+
+async def brain_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = get_user_data(update.effective_user.id)
+    arg = context.args[0].lower() if context.args else ""
+    if arg == "on":
+        user["brain_on"] = True
+        await update.message.reply_text("🧠 CLAWSCore Brain is now ON. Mixtral AI is thinking with you.")
+    elif arg == "off":
+        user["brain_on"] = False
+        await update.message.reply_text("🧠 Brain is OFF. Back to default core logic.")
+    else:
+        await update.message.reply_text("❌ Use /brain on or /brain off to toggle.")
 
 async def learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -194,6 +220,19 @@ async def achievements(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
+# ---------- MESSAGE HANDLER ---------- #
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = get_user_data(update.effective_user.id)
+    text = update.message.text
+
+    if user.get("brain_on"):
+        response = await ask_mixtral(text)
+    else:
+        response = "🧠 Brain is OFF. Use /help or /brain on to enable AI."
+
+    await update.message.reply_text(response)
+
 # ---------- MAIN ---------- #
 
 def main():
@@ -210,6 +249,10 @@ def main():
     app.add_handler(CommandHandler("profile", profile))
     app.add_handler(CommandHandler("badge", badge))
     app.add_handler(CommandHandler("achievements", achievements))
+    app.add_handler(CommandHandler("brain", brain_toggle))
+
+    # AI router for free text input
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("✅ CLAWSCore is running (polling mode)")
     app.run_polling()
