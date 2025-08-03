@@ -1,8 +1,11 @@
 import logging
 import os
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+import asyncio
 from aiohttp import web
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, ContextTypes
+)
 
 # === LOGGING ===
 logging.basicConfig(
@@ -13,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # === ENVIRONMENT VARIABLES ===
 TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")  # e.g. https://your-app-name.onrender.com
+WEBHOOK_HOST = os.environ.get("WEBHOOK_HOST")  # https://your-app-name.onrender.com
 PORT = int(os.environ.get("PORT", 5000))
 
 if not TOKEN or not WEBHOOK_HOST:
@@ -110,35 +113,34 @@ async def placeholder(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # === MAIN ===
 async def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+    application = ApplicationBuilder().token(TOKEN).build()
 
-    # === Register Handlers ===
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("xp", xp))
+    # Register handlers
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("xp", xp))
     for cmd in ["learn", "patterns", "delete", "edit", "test", "train", "badge"]:
-        app.add_handler(CommandHandler(cmd, placeholder))
+        application.add_handler(CommandHandler(cmd, placeholder))
 
-    # === Web Server ===
-    async def index(request):
-        return web.Response(text="CLAWSCore Bot is running 🐾")
+    # Set webhook
+    await application.bot.set_webhook(WEBHOOK_URL)
+    logger.info(f"✅ Webhook set to: {WEBHOOK_URL}")
 
-    app.web_app.add_routes([web.get("/", index)])
+    # Create aiohttp app and routes
+    aio_app = web.Application()
+    aio_app.router.add_post(WEBHOOK_PATH, application.webhook_handler())
+    aio_app.router.add_get("/", lambda request: web.Response(text="CLAWSCore Bot is running 🐾"))
 
-    # === Set Webhook on startup ===
-    async def on_startup(application):
-        await application.bot.set_webhook(WEBHOOK_URL)
-        logger.info(f"✅ Webhook set to: {WEBHOOK_URL}")
+    # Start web server
+    runner = web.AppRunner(aio_app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=PORT)
+    logger.info(f"🚀 CLAWSCore is live on port {PORT}")
+    await site.start()
 
-    app.post_init = on_startup
+    # Keep running
+    while True:
+        await asyncio.sleep(3600)
 
-    logger.info("🚀 Launching CLAWSCore with webhook...")
-    await app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_path=WEBHOOK_PATH,
-    )
-
-if __name__ == '__main__':
-    import asyncio
+if __name__ == "__main__":
     asyncio.run(main())
