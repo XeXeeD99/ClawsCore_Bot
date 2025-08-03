@@ -87,7 +87,9 @@ async def ask_mixtral(prompt: str):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "👋 <b>Welcome to CLAWSCore 🧠</b>\n\nYour Tactical Memory Bank for Trading Patterns!\n\nUse /help to open your toolbox 🧰",
+        "👋 <b>Welcome to CLAWSCore 🧠</b>\n\n"
+        "Your Tactical Memory Bank for Trading Patterns!\n\n"
+        "Use /help to open your toolbox 🧰",
         parse_mode="HTML"
     )
 
@@ -96,12 +98,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<b>🧰 CLAWSCore Command Menu</b>\n\n"
         "📚 /learn <i>name | strategy</i> — Save a new pattern (+100 XP)\n"
         "✏️ /edit <i>name | new strategy</i> — Update an existing pattern\n"
-        "🗑️ /delete <i>name</i> — Delete a pattern\n"
+        "🗑️ /delete <i>name</i> — Delete a pattern\n\n"
         "📖 /patterns — Show all your saved patterns\n"
         "📊 /xp — View rank & XP progress\n"
         "🧪 /profile — View full stats: XP, rank, patterns & badges\n"
         "🎖️ /badge — View unlocked badges\n"
-        "🌟 /achievements — All possible ranks & badges\n"
+        "🌟 /achievements — All possible ranks & badges\n\n"
         "🧠 /brainon — Enable AI Brain\n"
         "🧠 /brainoff — Disable AI Brain\n"
         "🤐 /help — This magical menu again",
@@ -128,8 +130,10 @@ async def learn(update: Update, context: ContextTypes.DEFAULT_TYPE):
         new_badges = check_badges(update.effective_user.id)
         badge_text = f"\n🎖 <b>New Badge Unlocked:</b> {', '.join(new_badges)}" if new_badges else ""
         await update.message.reply_text(
-            f"✅ <b>Pattern Saved:</b> {name}\n➕ +100 XP!\n"
-            f"{generate_progress_bar(user['xp'])}\n🏅 <b>Rank:</b> {get_rank(user['xp'])}{badge_text}",
+            f"✅ <b>Pattern Saved:</b> {name}\n"
+            f"➕ +100 XP!\n"
+            f"{generate_progress_bar(user['xp'])}\n\n"
+            f"🏅 <b>Rank:</b> {get_rank(user['xp'])}{badge_text}",
             parse_mode="HTML"
         )
     except:
@@ -140,7 +144,7 @@ async def patterns(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user["patterns"]:
         await update.message.reply_text("🛌 You haven't saved any patterns yet. Use /learn to get started!")
     else:
-        msg = "\n".join([f"🔹 <b>{k}</b>: {v}" for k, v in user["patterns"].items()])
+        msg = "\n\n".join([f"🔹 <b>{k}</b>: {v}" for k, v in user["patterns"].items()])
         await update.message.reply_text(f"📖 <b>Your Pattern Vault:</b>\n\n{msg}", parse_mode="HTML")
 
 async def edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -192,7 +196,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🧪 <b>Your CLAWSCore Profile</b>\n\n"
         f"🧠 <b>XP:</b> {xp}\n"
         f"🏅 <b>Rank:</b> {rank}\n"
-        f"{progress}\n"
+        f"{progress}\n\n"
         f"📚 <b>Patterns Learned:</b> {pattern_count}\n"
         f"🎖 <b>Badges:</b> {badge_count} ({badge_list})",
         parse_mode="HTML"
